@@ -42,18 +42,42 @@ def seed_db():
             orders = []
             for i in range(60):
                 name = f"{random.choice(first_names)} {random.choice(last_names)}"
+                status = "Cancelled" if i < 15 else "Booked"
+                order_amount = float(random.randint(50, 500) * 10)
+                trip_dt = now + timedelta(days=random.randint(5, 90))
                 orders.append(
                     schema.Order(
                         customer_name=name,
                         destination=random.choice(destinations),
-                        trip_date=now + timedelta(days=random.randint(5, 90)),
-                        total_amount=float(random.randint(50, 500) * 10),
-                        status="Booked"
+                        trip_date=trip_dt,
+                        total_amount=order_amount,
+                        status=status
                     )
                 )
             db.add_all(orders)
             db.commit()
             print("Seeded sample orders.")
+            
+        # Seed mock audit logs for cancelled orders if empty
+        if db.query(schema.AuditLog).count() == 0:
+            cancelled_orders = db.query(schema.Order).filter(schema.Order.status == "Cancelled").all()
+            logs = []
+            for order in cancelled_orders:
+                cancel_dt = order.trip_date - timedelta(days=random.randint(2, 30))
+                # rough mock calculation
+                refund_pct = 50.0
+                refund_amt = order.total_amount * (refund_pct / 100)
+                logs.append(schema.AuditLog(
+                    booking_id=order.booking_id,
+                    cancellation_date=cancel_dt,
+                    refund_amount=refund_amt,
+                    retention_fee=order.total_amount - refund_amt,
+                    policy_applied="Tier 2",
+                    refund_status="Processed" if random.random() > 0.3 else "Pending"
+                ))
+            db.add_all(logs)
+            db.commit()
+            print("Seeded sample audit logs.")
     except Exception as e:
         print(f"Error seeding DB: {e}")
         db.rollback()
