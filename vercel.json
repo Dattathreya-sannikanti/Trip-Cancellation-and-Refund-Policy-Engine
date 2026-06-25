@@ -1,4 +1,0 @@
-{
-  "buildCommand": "cd manivtha-refund-engine/frontend && npm install && npm run build",
-  "outputDirectory": "manivtha-refund-engine/frontend/dist"
-}
