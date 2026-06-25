@@ -119,9 +119,6 @@ class AuditLogUpdateRequest(BaseModel):
 class StatusUpdateRequest(BaseModel):
     status: str
 
-@app.get("/")
-def root():
-    return {"message": "Welcome to the Manivtha Tours & Travels Refund Engine API"}
 
 @app.get("/api/health")
 def health_check():
