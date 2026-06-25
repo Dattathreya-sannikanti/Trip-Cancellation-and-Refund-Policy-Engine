@@ -254,7 +254,28 @@ def cancel_order(req: CancellationRequest, db: Session = Depends(get_db)):
         "policy_applied": rationale
     }
 
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount the static files from the frontend build if they exist
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    # Mount the assets directory (js, css, images)
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    
+    # Catch-all route to serve the React SPA index.html
+    @app.get("/{catchall:path}")
+    def serve_react_app(catchall: str):
+        # Ignore API routes
+        if catchall.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API route not found")
+        
+        index_path = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Frontend build not found")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.app:app", host="0.0.0.0", port=8000, reload=True)
-
