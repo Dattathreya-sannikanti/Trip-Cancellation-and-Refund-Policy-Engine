@@ -1355,37 +1355,36 @@ function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-col">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Cancellation Policies Breakdown</h3>
-          <div className="h-72 overflow-y-auto custom-scrollbar">
-            <div style={{ height: `${Math.max(288, policyData.length * 35 + 200)}px` }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={policyData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} fill="#8884d8" paddingAngle={5} dataKey="value" label isAnimationActive={false}>
-                    {policyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip />
-                  <Legend layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: "20px" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={policyData} cx="50%" cy="45%" innerRadius={60} outerRadius={80} fill="#8884d8" paddingAngle={5} dataKey="value" label isAnimationActive={false}>
+                  {policyData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip />
+                <Legend layout="horizontal" verticalAlign="bottom" align="center" />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-col">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Daily Refund Volumes</h3>
-          <div className="h-72 overflow-x-auto overflow-y-hidden custom-scrollbar">
-            <div style={{ width: `${Math.max(100, barData.length * 60)}px`, minWidth: '100%', height: '100%' }}>
+          <div className="h-80 w-full overflow-x-auto overflow-y-hidden">
+            <div style={{ minWidth: '600px', height: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
                   <XAxis dataKey="date" tick={{fontSize: 12, fill: '#64748b'}} />
                   <YAxis tick={{fontSize: 12, fill: '#64748b'}} tickFormatter={(value) => `₹${value/1000}k`} />
-                  <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px', backgroundColor: '#1e293b', border: 'none', color: '#fff'}} />
+                  <RechartsTooltip cursor={{fill: '#334155', opacity: 0.1}} contentStyle={{borderRadius: '8px', backgroundColor: '#1e293b', border: 'none', color: '#fff'}} />
                   <Bar dataKey="refund_amount" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Refund (₹)" isAnimationActive={false} />
                   <Bar dataKey="retention_fee" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Fee (₹)" isAnimationActive={false} />
+                  <Legend verticalAlign="bottom" align="center" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
