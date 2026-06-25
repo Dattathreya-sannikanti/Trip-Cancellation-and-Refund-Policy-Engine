@@ -1316,9 +1316,9 @@ function ReportsPage() {
 
   const policyData = logs.reduce((acc, log) => {
     let policy = log.policy_applied || 'Unknown';
-    if (policy.includes('> 7 days') || policy.includes('More than 7 days')) policy = '> 7 Days (90% Refund)';
-    else if (policy.includes('2 to 7 days') || policy.includes('Between 2 to 7 days')) policy = '2-7 Days (50% Refund)';
-    else if (policy.includes('< 48 hours') || policy.includes('Less than 48 hours')) policy = '< 48 Hours (10% Refund)';
+    if (policy.includes('Tier 1') || policy.includes('> 7 days') || policy.includes('More than 7 days')) policy = '> 7 Days (90% Refund)';
+    else if (policy.includes('Tier 2') || policy.includes('2 to 7 days') || policy.includes('Between 2 to 7 days')) policy = '2-7 Days (50% Refund)';
+    else if (policy.includes('Tier 3') || policy.includes('< 48 hours') || policy.includes('Less than 48 hours')) policy = '< 48 Hours (10% Refund)';
     else if (policy.includes('Trip has already started')) policy = 'Invalid/Started (0%)';
     
     const existing = acc.find(x => x.name === policy);

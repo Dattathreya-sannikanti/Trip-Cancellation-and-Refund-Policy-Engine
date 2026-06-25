@@ -2,12 +2,11 @@ import axios from 'axios';
 
 // Configure Axios instance for backend API
 const getBaseUrl = () => {
-  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
   // If running locally, use localhost:8000
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return `http://${window.location.hostname}:8000`;
   }
-  // Otherwise, use the production Render backend URL
+  // Otherwise, FORCE the production Render backend URL to prevent Vercel env var overrides
   return 'https://trip-cancellation-and-refund-policy.onrender.com';
 };
 
