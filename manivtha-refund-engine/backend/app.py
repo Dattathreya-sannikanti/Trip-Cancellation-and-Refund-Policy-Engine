@@ -372,6 +372,38 @@ def forgot_password(req: ForgotPasswordRequest, request: Request, background_tas
 
     return {"success": True, "message": "If that email is in our system, a reset link has been sent."}
 
+@app.get("/api/debug-email")
+def debug_email():
+    import smtplib
+    from email.mime.text import MIMEText
+    try:
+        smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_user = os.getenv("SMTP_USERNAME", "")
+        smtp_password = os.getenv("SMTP_PASSWORD", "")
+        from_email = os.getenv("SMTP_FROM_EMAIL", smtp_user)
+        to_email = "dattathreya52321@gmail.com"
+
+        msg = MIMEText("Debug Email from Render")
+        msg["Subject"] = "Debug Render SMTP"
+        msg["From"] = from_email
+        msg["To"] = to_email
+
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
+                server.sendmail(from_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.sendmail(from_email, to_email, msg.as_string())
+        
+        return {"status": "success", "message": f"Email sent successfully using port {smtp_port} with user {smtp_user}"}
+    except Exception as e:
+        import traceback
+        return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+
 
 @app.post("/api/auth/reset-password")
 def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
