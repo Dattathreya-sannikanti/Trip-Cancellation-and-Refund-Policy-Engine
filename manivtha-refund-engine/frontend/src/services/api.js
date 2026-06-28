@@ -161,6 +161,15 @@ export const authService = {
       console.error('Failed to get current user:', error);
       throw error;
     }
+  },
+  updateProfile: async (profileData) => {
+    try {
+      const response = await api.put('/api/me', profileData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    }
   }
 };
 

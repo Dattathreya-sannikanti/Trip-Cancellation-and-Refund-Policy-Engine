@@ -1518,10 +1518,23 @@ function ProfileSettingsPage() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    updateUser(formData);
-    addToast('Profile updated successfully');
+    try {
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      const updatedUser = await authService.updateProfile({
+        name: fullName,
+        email: formData.email
+      });
+      updateUser({
+        firstName: updatedUser.name.split(' ')[0] || 'User',
+        lastName: updatedUser.name.split(' ').slice(1).join(' ') || '',
+        email: updatedUser.email
+      });
+      addToast('Profile updated successfully', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.detail || 'Failed to update profile', 'error');
+    }
   };
 
   return (
