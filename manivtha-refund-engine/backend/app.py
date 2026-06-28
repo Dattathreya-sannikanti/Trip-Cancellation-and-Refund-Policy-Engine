@@ -267,6 +267,11 @@ class RoleUpdateRequest(BaseModel):
     role: str
 
 
+class UserProfileUpdate(BaseModel):
+    name: str
+    email: str
+
+
 class UserResponse(BaseModel):
     id: int
     name: str
@@ -321,7 +326,25 @@ def login(
 
 
 @app.get("/api/me", response_model=UserResponse)
-def get_current_user(current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN, schema.Role.MANAGER, schema.Role.STAFF]))):
+def get_current_user_endpoint(current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN, schema.Role.MANAGER, schema.Role.STAFF]))):
+    return current_user
+
+
+@app.put("/api/me", response_model=UserResponse)
+def update_my_profile(
+    req: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN, schema.Role.MANAGER, schema.Role.STAFF]))
+):
+    if req.email != current_user.email:
+        existing_user = db.query(schema.User).filter(schema.User.email == req.email).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already in use")
+    
+    current_user.name = req.name
+    current_user.email = req.email
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 
