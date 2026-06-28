@@ -352,8 +352,7 @@ def update_my_profile(
 def forgot_password(req: ForgotPasswordRequest, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(schema.User).filter(schema.User.email == req.email).first()
     if not user:
-        # Prevent email enumeration
-        return {"success": True, "message": "If that email is in our system, a reset link has been sent."}
+        raise HTTPException(status_code=404, detail="This email address is not registered in our system.")
 
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
