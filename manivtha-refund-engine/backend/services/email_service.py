@@ -47,10 +47,16 @@ def send_password_reset_email(to_email: str, reset_link: str):
     msg.attach(part)
 
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.sendmail(from_email, to_email, msg.as_string())
+        # Port 465 uses Implicit TLS, which is much faster as it skips the STARTTLS negotiation delay.
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
+                server.sendmail(from_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.sendmail(from_email, to_email, msg.as_string())
         return True
     except Exception as e:
         print(f"Error sending email: {e}")
