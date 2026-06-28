@@ -2,11 +2,7 @@ import axios from 'axios';
 
 // Configure Axios instance for backend API
 const getBaseUrl = () => {
-  // If running locally, use localhost:8000
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return `http://${window.location.hostname}:8000`;
-  }
-  // Otherwise, FORCE the production Render backend URL to prevent Vercel env var overrides
+  // Point local development to the live Render backend to avoid connection errors
   return 'https://trip-cancellation-and-refund-policy.onrender.com';
 };
 
@@ -15,7 +11,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 30000, // Increased to 30 seconds to allow for SMTP email sending
 });
 
 api.interceptors.request.use((config) => {

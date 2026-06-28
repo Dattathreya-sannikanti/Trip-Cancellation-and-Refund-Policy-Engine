@@ -46,18 +46,37 @@ def send_password_reset_email(to_email: str, reset_link: str):
     part = MIMEText(html_content, "html")
     msg.attach(part)
 
+    # Use Vercel Serverless Function as an Email Relay to bypass Render's SMTP block
+    relay_url = "https://trip-cancellation-and-refund-policy.vercel.app/api/relay"
+    
+    payload = {
+        "to": to_email,
+        "subject": "Password Reset Request - Manivtha Tours",
+        "html": html_content,
+        "smtpUser": smtp_user,
+        "smtpPass": smtp_password,
+        "smtpServer": smtp_server,
+        "smtpPort": smtp_port
+    }
+
     try:
-        # Port 465 uses Implicit TLS, which is much faster as it skips the STARTTLS negotiation delay.
-        if smtp_port == 465:
-            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-                server.login(smtp_user, smtp_password)
-                server.sendmail(from_email, to_email, msg.as_string())
+        import urllib.request
+        import json
+        
+        req = urllib.request.Request(
+            relay_url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        response = urllib.request.urlopen(req, timeout=10)
+        
+        if response.getcode() == 200:
+            return True
         else:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_password)
-                server.sendmail(from_email, to_email, msg.as_string())
-        return True
+            print(f"Relay returned status code: {response.getcode()}")
+            return False
+            
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Error communicating with Vercel Relay: {e}")
         return False
