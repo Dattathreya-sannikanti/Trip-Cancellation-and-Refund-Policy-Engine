@@ -5,3 +5,4 @@ pymysql
 python-dotenv
 PyJWT
 passlib[bcrypt]
+python-multipart

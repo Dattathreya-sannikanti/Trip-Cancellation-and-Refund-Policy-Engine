@@ -18,6 +18,16 @@ const api = axios.create({
   timeout: 10000,
 });
 
+api.interceptors.request.use((config) => {
+  const auth = localStorage.getItem('manivtha_auth_token');
+  if (auth) {
+    config.headers.Authorization = `Bearer ${auth}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
 export const refundService = {
   checkHealth: async () => {
     try {
@@ -107,6 +117,79 @@ export const refundService = {
       console.error('Failed to fetch details:', error);
       throw error;
     }
+  }
+};
+
+export const authService = {
+  login: async (username, password) => {
+    try {
+      const params = new URLSearchParams();
+      params.append('username', username);
+      params.append('password', password);
+      const response = await api.post('/api/login', params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  },
+  forgotPassword: async (email) => {
+    try {
+      const response = await api.post('/api/auth/forgot-password', { email });
+      return response.data;
+    } catch (error) {
+      console.error('Forgot password request failed:', error);
+      throw error;
+    }
+  },
+  resetPassword: async (token, new_password) => {
+    try {
+      const response = await api.post('/api/auth/reset-password', { token, new_password });
+      return response.data;
+    } catch (error) {
+      console.error('Reset password failed:', error);
+      throw error;
+    }
+  },
+  me: async () => {
+    try {
+      const response = await api.get('/api/me');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      throw error;
+    }
+  }
+};
+
+export const userService = {
+  getUsers: async () => {
+    try {
+      const response = await api.get('/api/users');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      throw error;
+    }
+  },
+  createUser: async (userData) => {
+    try {
+      const response = await api.post('/api/users/create', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      throw error;
+    }
+  },
+  fireUser: async (userId) => {
+    const response = await api.patch(`/api/users/${userId}/fire`);
+    return response.data;
+  },
+  updateUserRole: async (userId, role) => {
+    const response = await api.patch(`/api/users/${userId}/role`, { role });
+    return response.data;
   }
 };
 

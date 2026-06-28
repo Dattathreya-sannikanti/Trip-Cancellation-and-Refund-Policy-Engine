@@ -1,6 +1,9 @@
 import { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { refundService } from './services/api';
+import { refundService, authService } from './services/api';
+import UserManagementPage from './UserManagement';
+import ForgotPasswordPage from './ForgotPassword';
+import ResetPasswordPage from './ResetPassword';
 import bannerImg from './assets/banner.png';
 import { 
   LayoutDashboard, 
@@ -22,7 +25,8 @@ import {
   Edit,
   Eye,
   EyeOff,
-  Filter
+  Filter,
+  Users
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Bar, Legend
@@ -61,15 +65,16 @@ function ThemeProvider({ children }) {
 // 0.5. USER CONTEXT
 // ----------------------------------------------------------------------
 const UserContext = createContext(null);
-const useUser = () => useContext(UserContext);
+export const useUser = () => useContext(UserContext);
 
 function UserProvider({ children }) {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('manivtha_user');
     return saved ? JSON.parse(saved) : {
-      firstName: 'Admin',
-      lastName: 'User',
-      email: 'admin@manivtha.com',
+      firstName: '',
+      lastName: '',
+      email: '',
+      role: 'STAFF',
       avatar: null
     };
   });
@@ -81,6 +86,31 @@ function UserProvider({ children }) {
       return updated;
     });
   };
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (localStorage.getItem('manivtha_auth') === 'true') {
+        try {
+          const data = await authService.me();
+          updateUser({
+            firstName: data.name.split(' ')[0] || 'User',
+            lastName: data.name.split(' ').slice(1).join(' ') || '',
+            email: data.email,
+            role: data.role
+          });
+        } catch (e) {
+          // If the token is invalid or expired, log them out
+          if (e.response && e.response.status === 401) {
+            localStorage.removeItem('manivtha_auth');
+            localStorage.removeItem('manivtha_auth_token');
+            localStorage.removeItem('manivtha_user');
+            window.location.href = '/login';
+          }
+        }
+      }
+    };
+    fetchUser();
+  }, []);
 
   return (
     <UserContext.Provider value={{ user, updateUser }}>
@@ -158,8 +188,14 @@ function Layout({ children }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [recentLogs, setRecentLogs] = useState([]);
   
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [orders, setOrders] = useState([]);
+  
   const notifRef = useRef(null);
   const profileRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -168,6 +204,9 @@ function Layout({ children }) {
       }
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileOpen(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setIsSearchOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -178,7 +217,25 @@ function Layout({ children }) {
 
   useEffect(() => {
     refundService.getAuditLogs().then(data => setRecentLogs(data.slice(0, 5)));
+    refundService.getOrders().then(setOrders).catch(console.error);
   }, []);
+  
+  const handleSearch = (e) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    if (val.trim().length > 1) {
+      setIsSearchOpen(true);
+      const lower = val.toLowerCase();
+      setSearchResults(orders.filter(o => 
+        o.customer_name.toLowerCase().includes(lower) || 
+        o.booking_id.toString().includes(lower) ||
+        o.status.toLowerCase().includes(lower)
+      ));
+    } else {
+      setIsSearchOpen(false);
+      setSearchResults([]);
+    }
+  };
   
   const handleLogout = () => {
     localStorage.removeItem('manivtha_auth');
@@ -192,6 +249,9 @@ function Layout({ children }) {
     { path: '/audit-logs', label: 'Audit Logs', icon: History },
     { path: '/reports', label: 'Reports & Analytics', icon: TrendingUp }
   ];
+  if (user && (user.role === 'ADMIN' || user.role === 'MANAGER')) {
+    navLinks.push({ path: '/users', label: 'User Management', icon: Users });
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
@@ -230,7 +290,7 @@ function Layout({ children }) {
         <div className="p-4 border-t border-slate-800 dark:border-slate-800/50">
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-semibold text-white border border-slate-700 overflow-hidden shrink-0">
-              {user.avatar ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : `${user.firstName[0]}${user.lastName[0]}`}
+              {user.avatar ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : (user.firstName ? user.firstName.charAt(0).toUpperCase() : 'U')}
             </div>
             <div className="overflow-hidden">
               <p className="text-sm font-medium text-white truncate">{user.firstName} {user.lastName}</p>
@@ -251,13 +311,36 @@ function Layout({ children }) {
       <div className="flex-1 flex flex-col min-w-0 ml-64 min-h-screen">
         <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 px-8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200">
           <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-96 hidden md:block">
+            <div className="relative w-96 hidden md:block" ref={searchRef}>
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="Search..." 
+                value={searchTerm}
+                onChange={handleSearch}
+                onFocus={() => { if(searchTerm.length > 1) setIsSearchOpen(true); }}
+                placeholder="Search bookings by ID or customer name..." 
                 className="w-full pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border border-transparent rounded-md text-sm focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 outline-none transition-all dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
               />
+              {isSearchOpen && (
+                <div className="absolute top-full mt-2 w-full bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 z-50 animate-fade-in overflow-hidden">
+                  <div className="p-2 border-b border-slate-100 dark:border-slate-800 text-xs font-semibold text-slate-500">Search Results</div>
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                    {searchResults.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-slate-500">No results found for "{searchTerm}"</div>
+                    ) : (
+                      searchResults.map(order => (
+                        <div key={order.booking_id} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex justify-between items-center cursor-pointer" onClick={() => { setIsSearchOpen(false); navigate('/cancellation-entry'); }}>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-200">#{order.booking_id} - {order.customer_name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Status: <span className={order.status === 'Cancelled' ? 'text-red-500 font-medium' : 'text-green-500 font-medium'}>{order.status}</span></p>
+                          </div>
+                          <span className="text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">₹{order.total_amount.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -294,7 +377,7 @@ function Layout({ children }) {
             </div>
             <div className="relative" ref={profileRef}>
               <button onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotifOpen(false); }} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-sm font-semibold text-slate-600 dark:text-slate-300 transition-colors overflow-hidden shrink-0 hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 dark:hover:ring-offset-slate-900">
-                {user.avatar ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : `${user.firstName[0]}${user.lastName[0]}`}
+                {user.avatar ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : (user.firstName ? user.firstName.charAt(0).toUpperCase() : 'U')}
               </button>
               {isProfileOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 z-50 animate-fade-in py-1">
@@ -335,6 +418,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const addToast = useToast();
   const { theme, toggleTheme } = useTheme();
+  const { updateUser } = useUser();
 
   useEffect(() => {
     if (localStorage.getItem('manivtha_auth') === 'true') {
@@ -342,20 +426,27 @@ function LoginPage() {
     }
   }, [navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     
-    setTimeout(() => {
-      if (email === 'admin@manivtha.com' && password === 'password') {
-        localStorage.setItem('manivtha_auth', 'true');
-        addToast('Signed in successfully', 'success');
-        navigate('/dashboard');
-      } else {
-        addToast('Invalid credentials', 'error');
-        setIsLoading(false);
-      }
-    }, 600);
+    try {
+      const data = await authService.login(email, password);
+      localStorage.setItem('manivtha_auth', 'true');
+      localStorage.setItem('manivtha_auth_token', data.access_token);
+      updateUser({
+        firstName: data.name.split(' ')[0] || 'User',
+        lastName: data.name.split(' ').slice(1).join(' ') || '',
+        email: data.email,
+        role: data.role
+      });
+      addToast('Signed in successfully', 'success');
+      navigate('/dashboard');
+    } catch (err) {
+      addToast(err.response?.data?.detail || 'Invalid credentials', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -387,7 +478,10 @@ function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
+              <Link to="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">Forgot password?</Link>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -424,6 +518,7 @@ function LoginPage() {
 // 4. DASHBOARD
 // ----------------------------------------------------------------------
 function DashboardPage() {
+  const { user } = useUser();
   const [orders, setOrders] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [policies, setPolicies] = useState([]);
@@ -474,7 +569,7 @@ function DashboardPage() {
     try {
         await refundService.updatePolicies(policies);
         addToast('Global policies updated successfully', 'success');
-    } catch (err) {
+    } catch {
         addToast('Failed to update policies', 'error');
     }
   };
@@ -591,99 +686,101 @@ function DashboardPage() {
       </div>
 
       {/* Global Policies Editor Demo Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mt-8">
-        <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Global Refund Policies</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Configure default refund percentages and timeframes for future cancellations.</p>
+      {user.role === 'ADMIN' && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mt-8">
+          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Global Refund Policies</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Configure default refund percentages and timeframes for future cancellations.</p>
+            </div>
+            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">DEMO</span>
           </div>
-          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">DEMO</span>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {policies.length === 3 ? (
-              <>
-                {/* Tier 1 */}
-                <div className="space-y-4 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Timeframe</label>
-                    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>More than</span>
-                      <input type="number" value={policies[0].min_hours / 24} onChange={e => updatePolicyField(0, 'min_hours', Number(e.target.value) * 24)} min="1" className="w-16 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
-                      <span>days</span>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {policies.length === 3 ? (
+                <>
+                  {/* Tier 1 */}
+                  <div className="space-y-4 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Timeframe</label>
+                      <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span>More than</span>
+                        <input type="number" value={policies[0].min_hours / 24} onChange={e => updatePolicyField(0, 'min_hours', Number(e.target.value) * 24)} min="1" className="w-16 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
+                        <span>days</span>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Refund Amount</label>
-                    <div className="relative">
-                      <input type="number" value={policies[0].refund_percentage} onChange={e => updatePolicyField(0, 'refund_percentage', Number(e.target.value))} min="0" max="100" className="w-full pl-3 pr-8 py-2 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white sm:text-sm transition-colors" />
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <span className="text-slate-500 sm:text-sm">%</span>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Refund Amount</label>
+                      <div className="relative">
+                        <input type="number" value={policies[0].refund_percentage} onChange={e => updatePolicyField(0, 'refund_percentage', Number(e.target.value))} min="0" max="100" className="w-full pl-3 pr-8 py-2 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white sm:text-sm transition-colors" />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <span className="text-slate-500 sm:text-sm">%</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Tier 2 */}
-                <div className="space-y-4 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Timeframe</label>
-                    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>Between</span>
-                      <input type="number" value={policies[1].min_hours / 24} onChange={e => updatePolicyField(1, 'min_hours', Number(e.target.value) * 24)} min="1" className="w-14 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
-                      <span>to</span>
-                      <input type="number" value={policies[1].max_hours / 24} onChange={e => updatePolicyField(1, 'max_hours', Number(e.target.value) * 24)} min="1" className="w-14 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
-                      <span>days</span>
+                  {/* Tier 2 */}
+                  <div className="space-y-4 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Timeframe</label>
+                      <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span>Between</span>
+                        <input type="number" value={policies[1].min_hours / 24} onChange={e => updatePolicyField(1, 'min_hours', Number(e.target.value) * 24)} min="1" className="w-14 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
+                        <span>to</span>
+                        <input type="number" value={policies[1].max_hours / 24} onChange={e => updatePolicyField(1, 'max_hours', Number(e.target.value) * 24)} min="1" className="w-14 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
+                        <span>days</span>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Refund Amount</label>
-                    <div className="relative">
-                      <input type="number" value={policies[1].refund_percentage} onChange={e => updatePolicyField(1, 'refund_percentage', Number(e.target.value))} min="0" max="100" className="w-full pl-3 pr-8 py-2 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white sm:text-sm transition-colors" />
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <span className="text-slate-500 sm:text-sm">%</span>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Refund Amount</label>
+                      <div className="relative">
+                        <input type="number" value={policies[1].refund_percentage} onChange={e => updatePolicyField(1, 'refund_percentage', Number(e.target.value))} min="0" max="100" className="w-full pl-3 pr-8 py-2 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white sm:text-sm transition-colors" />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <span className="text-slate-500 sm:text-sm">%</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Tier 3 */}
-                <div className="space-y-4 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Timeframe</label>
-                    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span>Less than</span>
-                      <input type="number" value={policies[2].max_hours} onChange={e => updatePolicyField(2, 'max_hours', Number(e.target.value))} min="1" className="w-16 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
-                      <span>hours</span>
+                  {/* Tier 3 */}
+                  <div className="space-y-4 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Timeframe</label>
+                      <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span>Less than</span>
+                        <input type="number" value={policies[2].max_hours} onChange={e => updatePolicyField(2, 'max_hours', Number(e.target.value))} min="1" className="w-16 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-center transition-colors" />
+                        <span>hours</span>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Refund Amount</label>
-                    <div className="relative">
-                      <input type="number" value={policies[2].refund_percentage} onChange={e => updatePolicyField(2, 'refund_percentage', Number(e.target.value))} min="0" max="100" className="w-full pl-3 pr-8 py-2 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white sm:text-sm transition-colors" />
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <span className="text-slate-500 sm:text-sm">%</span>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Refund Amount</label>
+                      <div className="relative">
+                        <input type="number" value={policies[2].refund_percentage} onChange={e => updatePolicyField(2, 'refund_percentage', Number(e.target.value))} min="0" max="100" className="w-full pl-3 pr-8 py-2 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white sm:text-sm transition-colors" />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <span className="text-slate-500 sm:text-sm">%</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </>
-            ) : (
-              <div className="col-span-3 text-center text-slate-500 py-8">Loading policies...</div>
-            )}
-          </div>
-          
-          <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-            <button 
-              onClick={handleSavePolicies}
-              disabled={policies.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
-            >
-              Save Policy Changes
-            </button>
+                </>
+              ) : (
+                <div className="col-span-3 text-center text-slate-500 py-8">Loading policies...</div>
+              )}
+            </div>
+            
+            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+              <button 
+                onClick={handleSavePolicies}
+                disabled={policies.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
+              >
+                Save Policy Changes
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -839,7 +936,7 @@ function CancellationEntryPage() {
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Notice Period</label>
             <div className="space-y-3">
               {policies.map((policy) => {
-                let tier = "";
+                let tier;
                 if (policy.max_hours === null) tier = `More than ${policy.min_hours/24} days prior`;
                 else if (policy.min_hours === 0) tier = `Less than ${policy.max_hours} hours prior`;
                 else tier = `Between ${policy.min_hours/24} to ${policy.max_hours/24} days prior`;
@@ -909,6 +1006,7 @@ function AuditLogsPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLogs();
   }, []);
 
@@ -918,7 +1016,7 @@ function AuditLogsPage() {
       await refundService.updateAuditLogStatus(logId, newStatus);
       addToast(`Status updated to ${newStatus}`, 'success');
       fetchLogs();
-    } catch (err) {
+    } catch {
       addToast('Failed to update status', 'error');
     }
   };
@@ -1204,7 +1302,7 @@ function EditCancellationPage() {
       });
       addToast('Cancellation record updated successfully', 'success');
       navigate('/audit-logs');
-    } catch (err) {
+    } catch {
       addToast('Failed to update record', 'error');
     }
   };
@@ -1434,18 +1532,23 @@ function ProfileSettingsPage() {
       </div>
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
         <div className="flex items-center gap-6 mb-8">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-800 border-4 border-white dark:border-slate-900 shadow-md overflow-hidden flex items-center justify-center text-3xl font-semibold text-slate-600 dark:text-slate-400">
-              {user.avatar ? (
-                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                `${user.firstName[0]}${user.lastName[0]}`
-              )}
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-800 border-4 border-white dark:border-slate-900 shadow-md overflow-hidden flex items-center justify-center text-3xl font-semibold text-slate-600 dark:text-slate-400">
+                {user.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  user.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'
+                )}
+              </div>
+              <label className="absolute bottom-0 right-0 p-1.5 bg-blue-600 rounded-full text-white cursor-pointer shadow-sm hover:bg-blue-700 transition-colors">
+                <div className="w-4 h-4 flex items-center justify-center text-lg">+</div>
+                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+              </label>
             </div>
-            <label className="absolute bottom-0 right-0 p-1.5 bg-blue-600 rounded-full text-white cursor-pointer shadow-sm hover:bg-blue-700 transition-colors">
-              <div className="w-4 h-4 flex items-center justify-center text-lg">+</div>
-              <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-            </label>
+            {user.avatar && (
+              <button type="button" onClick={() => { updateUser({ avatar: null }); addToast('Profile picture removed'); }} className="text-red-500 hover:text-red-600 text-xs font-medium">Remove Picture</button>
+            )}
           </div>
           <div>
             <h3 className="text-lg font-medium text-slate-900 dark:text-white">{user.firstName} {user.lastName}</h3>
@@ -1530,6 +1633,8 @@ function App() {
           <ToastProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/dashboard" element={<AuthGuard><Layout><DashboardPage /></Layout></AuthGuard>} />
               <Route path="/cancellation-entry" element={<AuthGuard><Layout><CancellationEntryPage /></Layout></AuthGuard>} />
               <Route path="/audit-logs" element={<AuthGuard><Layout><AuditLogsPage /></Layout></AuthGuard>} />
@@ -1538,6 +1643,7 @@ function App() {
               <Route path="/reports" element={<AuthGuard><Layout><ReportsPage /></Layout></AuthGuard>} />
               <Route path="/profile" element={<AuthGuard><Layout><ProfileSettingsPage /></Layout></AuthGuard>} />
               <Route path="/notifications" element={<AuthGuard><Layout><NotificationsPage /></Layout></AuthGuard>} />
+              <Route path="/users" element={<AuthGuard><Layout><UserManagementPage /></Layout></AuthGuard>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </ToastProvider>
