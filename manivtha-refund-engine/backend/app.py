@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import joinedload
 from backend.services.auth import get_password_hash, verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, RoleChecker
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -349,7 +349,7 @@ def update_my_profile(
 
 
 @app.post("/api/auth/forgot-password")
-def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(req: ForgotPasswordRequest, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(schema.User).filter(schema.User.email == req.email).first()
     if not user:
         # Prevent email enumeration
@@ -366,8 +366,9 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
     db.add(reset_entry)
     db.commit()
 
-    reset_link = f"http://localhost:5173/reset-password?token={token}"
-    send_password_reset_email(user.email, reset_link)
+    origin = request.headers.get("origin", "http://localhost:5173")
+    reset_link = f"{origin}/reset-password?token={token}"
+    background_tasks.add_task(send_password_reset_email, user.email, reset_link)
 
     return {"success": True, "message": "If that email is in our system, a reset link has been sent."}
 
