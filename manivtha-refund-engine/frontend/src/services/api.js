@@ -192,8 +192,16 @@ export const userService = {
     const response = await api.patch(`/api/users/${userId}/fire`);
     return response.data;
   },
+  rehireUser: async (userId) => {
+    const response = await api.patch(`/api/users/${userId}/rehire`);
+    return response.data;
+  },
   updateUserRole: async (userId, role) => {
     const response = await api.patch(`/api/users/${userId}/role`, { role });
+    return response.data;
+  },
+  updateUser: async (userId, userData) => {
+    const response = await api.put(`/api/users/${userId}`, userData);
     return response.data;
   }
 };

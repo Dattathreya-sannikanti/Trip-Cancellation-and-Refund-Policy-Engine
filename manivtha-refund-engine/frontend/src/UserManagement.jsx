@@ -9,6 +9,7 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [updatingRoleFor, setUpdatingRoleFor] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'STAFF' });
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,6 +42,49 @@ export default function UserManagementPage() {
     } catch (err) {
       alert(err.response?.data?.detail || "Failed to fire user");
       setLoading(false);
+    }
+  };
+
+  const handleRehireUser = async (userId) => {
+    if (!window.confirm("Are you sure you want to rehire this user?")) return;
+    setLoading(true);
+    try {
+      await userService.rehireUser(userId);
+      fetchUsers();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Failed to rehire user");
+      setLoading(false);
+    }
+  };
+
+  const openEditModal = (u) => {
+    if (user.role === 'MANAGER' && u.role === 'ADMIN') {
+      alert("You don't have permission to edit an Admin's profile.");
+      return;
+    }
+    setEditingUser({...u});
+    setError('');
+    setSuccess('');
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError('');
+    setSuccess('');
+    try {
+      await userService.updateUser(editingUser.id, {
+        name: editingUser.name,
+        email: editingUser.email,
+        role: editingUser.role
+      });
+      setSuccess('User updated successfully');
+      fetchUsers();
+      setTimeout(() => setEditingUser(null), 1500);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to update user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -120,14 +164,20 @@ export default function UserManagementPage() {
               ) : (
                 users.map(u => (
                   <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-                        {u.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-white">{u.name}</div>
-                        <div className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
-                          <Mail className="w-3 h-3" /> {u.email}
+                    <td className="px-6 py-4">
+                      <div 
+                        onClick={() => openEditModal(u)}
+                        className="flex items-center gap-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-lg p-2 -ml-2 transition-colors w-max"
+                        title="Click to edit user"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                          {u.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="font-medium text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{u.name}</div>
+                          <div className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
+                            <Mail className="w-3 h-3" /> {u.email}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -144,7 +194,7 @@ export default function UserManagementPage() {
                               'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                             } ${updatingRoleFor === u.id ? 'opacity-50 cursor-wait' : ''}`}
                           >
-                            <option value="ADMIN">ADMIN</option>
+                            {(user.role === 'ADMIN' || u.role === 'ADMIN') && <option value="ADMIN">ADMIN</option>}
                             <option value="MANAGER">MANAGER</option>
                             <option value="STAFF">STAFF</option>
                           </select>
@@ -183,7 +233,7 @@ export default function UserManagementPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {u.is_active && (
+                      {u.is_active ? (
                         (user.role === 'ADMIN' && u.role !== 'ADMIN') || 
                         (user.role === 'MANAGER' && u.role === 'STAFF')
                       ) && (
@@ -193,6 +243,15 @@ export default function UserManagementPage() {
                         >
                           Fire User
                         </button>
+                      ) : (
+                        (user.role === 'ADMIN' || (user.role === 'MANAGER' && u.role !== 'ADMIN')) && (
+                          <button
+                            onClick={() => handleRehireUser(u.id)}
+                            className="px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 rounded-lg transition-colors shadow-sm"
+                          >
+                            Rehire User
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>
@@ -265,6 +324,70 @@ export default function UserManagementPage() {
                   {isSubmitting ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                   ) : 'Create User Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setEditingUser(null)}></div>
+          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md relative z-10 animate-fade-in overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200/50 dark:border-slate-800/50 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/30">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-500" />
+                Edit User
+              </h3>
+              <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm flex items-start gap-2 border border-red-200 dark:border-red-900/30">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <p>{error}</p>
+                </div>
+              )}
+              {success && (
+                <div className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-3 rounded-lg text-sm flex items-start gap-2 border border-green-200 dark:border-green-900/30">
+                  <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <p>{success}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                <input required type="text" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="w-full px-4 py-2 border border-slate-300/70 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+                <input required type="email" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full px-4 py-2 border border-slate-300/70 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Role</label>
+                <select 
+                  value={editingUser.role} 
+                  onChange={e => setEditingUser({...editingUser, role: e.target.value})} 
+                  className="w-full px-4 py-2 border border-slate-300/70 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all appearance-none"
+                  disabled={user.role === 'MANAGER' && editingUser.role === 'ADMIN'}
+                >
+                  {(user.role === 'ADMIN' || editingUser.role === 'ADMIN') && <option value="ADMIN">Admin (Full Access)</option>}
+                  <option value="MANAGER">Manager (Elevated Access)</option>
+                  <option value="STAFF">Staff (Basic Access)</option>
+                </select>
+              </div>
+              
+              <div className="pt-2">
+                <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-70 flex justify-center items-center gap-2">
+                  {isSubmitting ? (
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  ) : 'Save Changes'}
                 </button>
               </div>
             </form>

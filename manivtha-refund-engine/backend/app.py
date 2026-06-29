@@ -267,6 +267,12 @@ class RoleUpdateRequest(BaseModel):
     role: str
 
 
+class UserUpdateRequest(BaseModel):
+    name: str
+    email: str
+    role: str
+
+
 class UserProfileUpdate(BaseModel):
     name: str
     email: str
@@ -511,26 +517,82 @@ def fire_user(
     return {"success": True, "message": f"User {target_user.name} has been fired."}
 
 
+@app.patch("/api/users/{user_id}/rehire")
+def rehire_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN, schema.Role.MANAGER]))
+):
+    target_user = db.query(schema.User).filter(schema.User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if current_user.role == schema.Role.MANAGER and target_user.role == schema.Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Managers cannot rehire an Admin")
+        
+    target_user.is_active = True
+    db.commit()
+    return {"success": True, "message": f"User {target_user.name} has been rehired."}
+
+
 @app.patch("/api/users/{user_id}/role")
 def update_user_role(
     user_id: int,
     req: RoleUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN]))
+    current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN, schema.Role.MANAGER]))
 ):
     if req.role not in [schema.Role.ADMIN, schema.Role.MANAGER, schema.Role.STAFF]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
         
+    if current_user.role == schema.Role.MANAGER and req.role == schema.Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Managers cannot promote someone to Admin")
+
     target_user = db.query(schema.User).filter(schema.User.id == user_id).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
     if target_user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Admins cannot change their own role")
+        raise HTTPException(status_code=400, detail="Users cannot change their own role")
+        
+    if current_user.role == schema.Role.MANAGER and target_user.role == schema.Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Managers cannot change an Admin's role")
         
     target_user.role = req.role
     db.commit()
     return {"success": True, "message": f"User {target_user.name}'s role updated to {req.role}."}
+
+
+@app.put("/api/users/{user_id}")
+def update_user(
+    user_id: int,
+    req: UserUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: schema.User = Depends(RoleChecker([schema.Role.ADMIN, schema.Role.MANAGER]))
+):
+    if req.role not in [schema.Role.ADMIN, schema.Role.MANAGER, schema.Role.STAFF]:
+        raise HTTPException(status_code=400, detail="Invalid role specified")
+        
+    if current_user.role == schema.Role.MANAGER and req.role == schema.Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Managers cannot promote someone to Admin")
+
+    target_user = db.query(schema.User).filter(schema.User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if current_user.role == schema.Role.MANAGER and target_user.role == schema.Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Managers cannot edit an Admin's details")
+        
+    if req.email != target_user.email:
+        existing = db.query(schema.User).filter(schema.User.email == req.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+            
+    target_user.name = req.name
+    target_user.email = req.email
+    target_user.role = req.role
+    db.commit()
+    return {"success": True, "message": f"User {target_user.name}'s details updated."}
 
 
 @app.get("/api/policies")
