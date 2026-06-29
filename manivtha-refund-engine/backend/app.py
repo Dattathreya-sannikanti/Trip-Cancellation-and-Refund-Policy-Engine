@@ -733,7 +733,14 @@ if os.path.exists(frontend_dist):
 
         index_path = os.path.join(frontend_dist, "index.html")
         if os.path.exists(index_path):
-            return FileResponse(index_path)
+            return FileResponse(
+                index_path,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
         raise HTTPException(status_code=404, detail="Frontend build not found")
 
 if __name__ == "__main__":
