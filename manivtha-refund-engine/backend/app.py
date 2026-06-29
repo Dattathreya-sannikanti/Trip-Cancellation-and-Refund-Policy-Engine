@@ -725,6 +725,11 @@ if os.path.exists(frontend_dist):
         # Ignore API routes
         if catchall.startswith("api/"):
             raise HTTPException(status_code=404, detail="API route not found")
+            
+        # Serve static files in the root of dist (e.g. favicon.svg, robots.txt)
+        file_path = os.path.join(frontend_dist, catchall)
+        if catchall and os.path.isfile(file_path):
+            return FileResponse(file_path)
 
         index_path = os.path.join(frontend_dist, "index.html")
         if os.path.exists(index_path):
