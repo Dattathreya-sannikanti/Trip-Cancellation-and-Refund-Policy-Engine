@@ -233,25 +233,21 @@ export default function UserManagementPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {u.is_active ? (
-                        (user.role === 'ADMIN' && u.role !== 'ADMIN') || 
-                        (user.role === 'MANAGER' && u.role === 'STAFF')
-                      ) && (
+                      {u.is_active && ((user.role === 'ADMIN' && u.role !== 'ADMIN') || (user.role === 'MANAGER' && u.role === 'STAFF')) && (
                         <button
                           onClick={() => handleFireUser(u.id)}
                           className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded-lg transition-colors shadow-sm"
                         >
                           Fire User
                         </button>
-                      ) : (
-                        (user.role === 'ADMIN' || (user.role === 'MANAGER' && u.role !== 'ADMIN')) && (
-                          <button
-                            onClick={() => handleRehireUser(u.id)}
-                            className="px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 rounded-lg transition-colors shadow-sm"
-                          >
-                            Rehire User
-                          </button>
-                        )
+                      )}
+                      {!u.is_active && (user.role === 'ADMIN' || (user.role === 'MANAGER' && u.role !== 'ADMIN')) && (
+                        <button
+                          onClick={() => handleRehireUser(u.id)}
+                          className="px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 rounded-lg transition-colors shadow-sm"
+                        >
+                          Rehire User
+                        </button>
                       )}
                     </td>
                   </tr>
