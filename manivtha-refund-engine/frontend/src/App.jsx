@@ -1505,6 +1505,19 @@ function ProfileSettingsPage() {
     lastName: user.lastName,
     email: user.email
   });
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handlePasswordResetRequest = async () => {
+    setIsResetting(true);
+    try {
+      await authService.forgotPassword(user.email);
+      addToast('Password reset link sent to your email', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.detail || 'Failed to send reset link', 'error');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -1588,6 +1601,18 @@ function ProfileSettingsPage() {
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium">Save Changes</button>
           </div>
         </form>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+        <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">Password & Security</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Request a password reset link to be sent to your registered email address.</p>
+        <button 
+          onClick={handlePasswordResetRequest} 
+          disabled={isResetting}
+          className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {isResetting ? 'Sending Link...' : 'Request Password Reset'}
+        </button>
       </div>
     </div>
   );

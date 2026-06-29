@@ -309,6 +309,10 @@ def login(
         raise HTTPException(
             status_code=400,
             detail="Incorrect email or password")
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Account is deactivated")
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -428,7 +432,21 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     db.delete(reset_entry)
     db.commit()
     
-    return {"success": True, "message": "Password updated successfully"}
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "role": user.role},
+        expires_delta=access_token_expires)
+    
+    return {
+        "success": True, 
+        "message": "Password updated successfully",
+        "access_token": access_token,
+        "role": user.role,
+        "name": user.name,
+        "email": user.email
+    }
 
 
 @app.post("/api/users/create")

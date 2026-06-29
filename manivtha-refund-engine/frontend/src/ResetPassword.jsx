@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Lock, ArrowRight, Eye, EyeOff, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from './services/api';
+import { useUser } from './App';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const navigate = useNavigate();
+  const { updateUser } = useUser();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,11 +33,30 @@ export default function ResetPasswordPage() {
     setError('');
     
     try {
-      await authService.resetPassword(token, password);
+      const data = await authService.resetPassword(token, password);
       setIsSuccess(true);
+      
+      // If backend is deployed with new changes, it will return an access_token
+      if (data.access_token) {
+        localStorage.setItem('manivtha_auth', 'true');
+        localStorage.setItem('manivtha_auth_token', data.access_token);
+        
+        const nameParts = data.name ? data.name.split(' ') : ['User'];
+        updateUser({
+          firstName: nameParts[0] || 'User',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: data.email,
+          role: data.role
+        });
+      }
+      
       setTimeout(() => {
-        navigate('/login');
-      }, 3000);
+        if (data.access_token) {
+          navigate('/dashboard');
+        } else {
+          navigate('/login');
+        }
+      }, 2000);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to reset password. The link might be expired.');
     } finally {
@@ -83,7 +104,7 @@ export default function ResetPasswordPage() {
               </div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Password Updated!</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                Your password has been successfully reset. Redirecting to login...
+                Your password has been successfully reset. Redirecting...
               </p>
             </div>
           ) : (
